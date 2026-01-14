@@ -6,7 +6,7 @@ defmodule Racuni.PDF do
   alias Racuni.Invoice
   alias Racuni.HUB3
 
-  @template_path "priv/templates/invoice.typ"
+  @template_file "priv/templates/invoice.typ"
 
   @doc """
   Generates a PDF from an invoice.
@@ -21,7 +21,8 @@ defmodule Racuni.PDF do
   end
 
   defp compile_pdf(invoice, barcode_png) do
-    template = File.read!(@template_path)
+    template_path = Application.app_dir(:racuni, @template_file)
+    template = File.read!(template_path)
 
     # Write barcode to temp file since Imprintor can't handle raw binary
     barcode_path = Path.join(System.tmp_dir!(), "barcode-#{:erlang.unique_integer([:positive])}.png")
