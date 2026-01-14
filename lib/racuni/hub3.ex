@@ -16,14 +16,32 @@ defmodule Racuni.HUB3 do
   def generate_barcode(%Invoice{} = invoice) do
     with :ok <- validate_invoice_for_hub3(invoice) do
       data = format_hub3_string(invoice)
+      generate_pdf417_with_zint(data)
+    end
+  end
 
-      case PDF417.encode(data, %{columns: 8, security_level: 2}) do
-        {:ok, png_iodata} ->
-          {:ok, IO.iodata_to_binary(png_iodata)}
+  defp generate_pdf417_with_zint(data) do
+    tmp_file = Path.join(System.tmp_dir!(), "hub3_#{:erlang.unique_integer([:positive])}.png")
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+    args = [
+      "-b", "55",
+      "-d", data,
+      "--binary",
+      "--cols=8",
+      "--secure=2",
+      "--scale=2",
+      "-o", tmp_file
+    ]
+
+    case System.cmd("zint", args, stderr_to_stdout: true) do
+      {_, 0} ->
+        png_data = File.read!(tmp_file)
+        File.rm(tmp_file)
+        {:ok, png_data}
+
+      {error, _} ->
+        File.rm(tmp_file)
+        {:error, "zint error: #{error}"}
     end
   end
 
