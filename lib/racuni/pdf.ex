@@ -25,7 +25,9 @@ defmodule Racuni.PDF do
     template = File.read!(template_path)
 
     # Write barcode to temp file since Imprintor can't handle raw binary
-    barcode_path = Path.join(System.tmp_dir!(), "barcode-#{:erlang.unique_integer([:positive])}.png")
+    barcode_path =
+      Path.join(System.tmp_dir!(), "barcode-#{:erlang.unique_integer([:positive])}.png")
+
     File.write!(barcode_path, barcode_png)
 
     # Imprintor passes data directly as elixir_data global variable

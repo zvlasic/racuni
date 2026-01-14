@@ -11,8 +11,6 @@ defmodule Racuni.Application do
       RacuniWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:racuni, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Racuni.PubSub},
-      # Start a worker by calling: Racuni.Worker.start_link(arg)
-      # {Racuni.Worker, arg},
       # Start to serve requests, typically the last entry
       RacuniWeb.Endpoint
     ]

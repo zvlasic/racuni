@@ -33,7 +33,17 @@ defmodule Racuni.Invoice do
 
   defmodule LineItem do
     @moduledoc "A single invoice line item."
-    defstruct [:id, :name, :description, :quantity, :unit, :unit_price, :line_total, :vat_percent, :vat_category]
+    defstruct [
+      :id,
+      :name,
+      :description,
+      :quantity,
+      :unit,
+      :unit_price,
+      :line_total,
+      :vat_percent,
+      :vat_category
+    ]
   end
 
   defmodule TaxSubtotal do
@@ -43,7 +53,15 @@ defmodule Racuni.Invoice do
 
   defmodule Totals do
     @moduledoc "Invoice monetary totals."
-    defstruct [:line_extension, :tax_exclusive, :tax_inclusive, :tax_amount, :payable, :charge_total, :allowance_total]
+    defstruct [
+      :line_extension,
+      :tax_exclusive,
+      :tax_inclusive,
+      :tax_amount,
+      :payable,
+      :charge_total,
+      :allowance_total
+    ]
   end
 
   @ubl_ns [
@@ -63,9 +81,11 @@ defmodule Racuni.Invoice do
 
       invoice = %__MODULE__{
         id: xpath(doc, ~x"/invoice:Invoice/cbc:ID/text()"s |> add_ns()),
-        issue_date: xpath(doc, ~x"/invoice:Invoice/cbc:IssueDate/text()"s |> add_ns()) |> parse_date(),
+        issue_date:
+          xpath(doc, ~x"/invoice:Invoice/cbc:IssueDate/text()"s |> add_ns()) |> parse_date(),
         issue_time: xpath(doc, ~x"/invoice:Invoice/cbc:IssueTime/text()"os |> add_ns()),
-        due_date: xpath(doc, ~x"/invoice:Invoice/cbc:DueDate/text()"os |> add_ns()) |> parse_date(),
+        due_date:
+          xpath(doc, ~x"/invoice:Invoice/cbc:DueDate/text()"os |> add_ns()) |> parse_date(),
         currency: xpath(doc, ~x"/invoice:Invoice/cbc:DocumentCurrencyCode/text()"s |> add_ns()),
         type_code: xpath(doc, ~x"/invoice:Invoice/cbc:InvoiceTypeCode/text()"s |> add_ns()),
         supplier: parse_supplier(doc),
@@ -74,7 +94,9 @@ defmodule Racuni.Invoice do
         line_items: parse_line_items(doc),
         tax_breakdown: parse_tax_breakdown(doc),
         totals: parse_totals(doc),
-        delivery_date: xpath(doc, ~x"//cac:Delivery/cbc:ActualDeliveryDate/text()"os |> add_ns()) |> parse_date()
+        delivery_date:
+          xpath(doc, ~x"//cac:Delivery/cbc:ActualDeliveryDate/text()"os |> add_ns())
+          |> parse_date()
       }
 
       {:ok, invoice}
@@ -109,10 +131,15 @@ defmodule Racuni.Invoice do
         street: xpath(party, ~x"./cac:PostalAddress/cbc:StreetName/text()"s |> add_ns()),
         city: xpath(party, ~x"./cac:PostalAddress/cbc:CityName/text()"s |> add_ns()),
         postal_code: xpath(party, ~x"./cac:PostalAddress/cbc:PostalZone/text()"s |> add_ns()),
-        country: xpath(party, ~x"./cac:PostalAddress/cac:Country/cbc:IdentificationCode/text()"s |> add_ns()),
+        country:
+          xpath(
+            party,
+            ~x"./cac:PostalAddress/cac:Country/cbc:IdentificationCode/text()"s |> add_ns()
+          ),
         tax_id: xpath(party, ~x"./cac:PartyTaxScheme/cbc:CompanyID/text()"s |> add_ns()),
         oib: xpath(party, ~x"./cbc:EndpointID/text()"s |> add_ns()),
-        legal_form: xpath(party, ~x"./cac:PartyLegalEntity/cbc:CompanyLegalForm/text()"os |> add_ns())
+        legal_form:
+          xpath(party, ~x"./cac:PartyLegalEntity/cbc:CompanyLegalForm/text()"os |> add_ns())
       }
     end
   end
@@ -127,7 +154,11 @@ defmodule Racuni.Invoice do
         street: xpath(party, ~x"./cac:PostalAddress/cbc:StreetName/text()"s |> add_ns()),
         city: xpath(party, ~x"./cac:PostalAddress/cbc:CityName/text()"s |> add_ns()),
         postal_code: xpath(party, ~x"./cac:PostalAddress/cbc:PostalZone/text()"s |> add_ns()),
-        country: xpath(party, ~x"./cac:PostalAddress/cac:Country/cbc:IdentificationCode/text()"s |> add_ns()),
+        country:
+          xpath(
+            party,
+            ~x"./cac:PostalAddress/cac:Country/cbc:IdentificationCode/text()"s |> add_ns()
+          ),
         tax_id: xpath(party, ~x"./cac:PartyTaxScheme/cbc:CompanyID/text()"s |> add_ns()),
         oib: xpath(party, ~x"./cbc:EndpointID/text()"s |> add_ns()),
         legal_form: nil
@@ -158,7 +189,9 @@ defmodule Racuni.Invoice do
   defp parse_payment_id(payment_id) do
     # Format is typically "HR00 123456" or "HR00123456"
     case String.split(String.trim(payment_id), ~r/\s+/, parts: 2) do
-      [model, reference] -> {model, reference}
+      [model, reference] ->
+        {model, reference}
+
       [combined] ->
         if String.starts_with?(combined, "HR") do
           {String.slice(combined, 0, 4), String.slice(combined, 4..-1//1)}
@@ -177,10 +210,15 @@ defmodule Racuni.Invoice do
         description: xpath(item, ~x"./cac:Item/cbc:Description/text()"os |> add_ns()),
         quantity: xpath(item, ~x"./cbc:InvoicedQuantity/text()"s |> add_ns()) |> parse_decimal(),
         unit: xpath(item, ~x"./cbc:InvoicedQuantity/@unitCode"s),
-        unit_price: xpath(item, ~x"./cac:Price/cbc:PriceAmount/text()"s |> add_ns()) |> parse_decimal(),
-        line_total: xpath(item, ~x"./cbc:LineExtensionAmount/text()"s |> add_ns()) |> parse_decimal(),
-        vat_percent: xpath(item, ~x"./cac:Item/cac:ClassifiedTaxCategory/cbc:Percent/text()"s |> add_ns()) |> parse_decimal(),
-        vat_category: xpath(item, ~x"./cac:Item/cac:ClassifiedTaxCategory/cbc:ID/text()"s |> add_ns())
+        unit_price:
+          xpath(item, ~x"./cac:Price/cbc:PriceAmount/text()"s |> add_ns()) |> parse_decimal(),
+        line_total:
+          xpath(item, ~x"./cbc:LineExtensionAmount/text()"s |> add_ns()) |> parse_decimal(),
+        vat_percent:
+          xpath(item, ~x"./cac:Item/cac:ClassifiedTaxCategory/cbc:Percent/text()"s |> add_ns())
+          |> parse_decimal(),
+        vat_category:
+          xpath(item, ~x"./cac:Item/cac:ClassifiedTaxCategory/cbc:ID/text()"s |> add_ns())
       }
     end)
   end
@@ -190,10 +228,14 @@ defmodule Racuni.Invoice do
     |> Enum.map(fn subtotal ->
       %TaxSubtotal{
         category: xpath(subtotal, ~x"./cac:TaxCategory/cbc:ID/text()"s |> add_ns()),
-        percent: xpath(subtotal, ~x"./cac:TaxCategory/cbc:Percent/text()"s |> add_ns()) |> parse_decimal(),
-        taxable_amount: xpath(subtotal, ~x"./cbc:TaxableAmount/text()"s |> add_ns()) |> parse_decimal(),
+        percent:
+          xpath(subtotal, ~x"./cac:TaxCategory/cbc:Percent/text()"s |> add_ns())
+          |> parse_decimal(),
+        taxable_amount:
+          xpath(subtotal, ~x"./cbc:TaxableAmount/text()"s |> add_ns()) |> parse_decimal(),
         tax_amount: xpath(subtotal, ~x"./cbc:TaxAmount/text()"s |> add_ns()) |> parse_decimal(),
-        exemption_reason: xpath(subtotal, ~x"./cac:TaxCategory/cbc:TaxExemptionReason/text()"os |> add_ns())
+        exemption_reason:
+          xpath(subtotal, ~x"./cac:TaxCategory/cbc:TaxExemptionReason/text()"os |> add_ns())
       }
     end)
   end
@@ -204,13 +246,19 @@ defmodule Racuni.Invoice do
 
     if totals do
       %Totals{
-        line_extension: xpath(totals, ~x"./cbc:LineExtensionAmount/text()"s |> add_ns()) |> parse_decimal(),
-        tax_exclusive: xpath(totals, ~x"./cbc:TaxExclusiveAmount/text()"s |> add_ns()) |> parse_decimal(),
-        tax_inclusive: xpath(totals, ~x"./cbc:TaxInclusiveAmount/text()"s |> add_ns()) |> parse_decimal(),
+        line_extension:
+          xpath(totals, ~x"./cbc:LineExtensionAmount/text()"s |> add_ns()) |> parse_decimal(),
+        tax_exclusive:
+          xpath(totals, ~x"./cbc:TaxExclusiveAmount/text()"s |> add_ns()) |> parse_decimal(),
+        tax_inclusive:
+          xpath(totals, ~x"./cbc:TaxInclusiveAmount/text()"s |> add_ns()) |> parse_decimal(),
         payable: xpath(totals, ~x"./cbc:PayableAmount/text()"s |> add_ns()) |> parse_decimal(),
-        charge_total: xpath(totals, ~x"./cbc:ChargeTotalAmount/text()"os |> add_ns()) |> parse_decimal(),
-        allowance_total: xpath(totals, ~x"./cbc:AllowanceTotalAmount/text()"os |> add_ns()) |> parse_decimal(),
-        tax_amount: xpath(doc, ~x"//cac:TaxTotal/cbc:TaxAmount/text()"s |> add_ns()) |> parse_decimal()
+        charge_total:
+          xpath(totals, ~x"./cbc:ChargeTotalAmount/text()"os |> add_ns()) |> parse_decimal(),
+        allowance_total:
+          xpath(totals, ~x"./cbc:AllowanceTotalAmount/text()"os |> add_ns()) |> parse_decimal(),
+        tax_amount:
+          xpath(doc, ~x"//cac:TaxTotal/cbc:TaxAmount/text()"s |> add_ns()) |> parse_decimal()
       }
     end
   end

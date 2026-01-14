@@ -4,14 +4,22 @@ defmodule RacuniWeb.InvoiceLive do
   alias Racuni.Invoice
   alias Racuni.PDF
 
+  # Rate limit: 10 requests per minute per session
+  @rate_limit_scale 60_000
+  @rate_limit_count 10
+
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    # _csrf_token is always present from Phoenix's :fetch_session plug
+    session_id = session["_csrf_token"]
+
     {:ok,
      socket
      |> assign(:invoice, nil)
      |> assign(:pdf_data, nil)
      |> assign(:error, nil)
      |> assign(:processing, false)
+     |> assign(:session_id, session_id)
      |> allow_upload(:xml_file,
        accept: ~w(.xml),
        max_entries: 1,
@@ -33,7 +41,15 @@ defmodule RacuniWeb.InvoiceLive do
 
         <div class="card bg-base-200 shadow-xl">
           <div class="card-body">
-            <form id="upload-form" phx-submit="generate" phx-change="validate">
+            <form id="upload-form" phx-submit="generate" phx-change="validate" autocomplete="off">
+              <!-- Honeypot field - hidden from humans, bots will fill it -->
+              <input
+                type="text"
+                name="website"
+                tabindex="-1"
+                autocomplete="off"
+                style="position: absolute; left: -9999px; opacity: 0; height: 0;"
+              />
               <div
                 class="border-2 border-dashed border-base-content/20 rounded-lg p-8 text-center hover:border-primary/50 transition-colors"
                 phx-drop-target={@uploads.xml_file.ref}
@@ -59,9 +75,9 @@ defmodule RacuniWeb.InvoiceLive do
                 <%= for entry <- @uploads.xml_file.entries do %>
                   <div class="mt-4 flex items-center justify-center gap-4">
                     <.icon name="hero-document-text" class="w-6 h-6 text-success" />
-                    <span class="font-medium"><%= entry.client_name %></span>
+                    <span class="font-medium">{entry.client_name}</span>
                     <span class="text-sm text-base-content/50">
-                      (<%= format_bytes(entry.client_size) %>)
+                      ({format_bytes(entry.client_size)})
                     </span>
                     <button
                       type="button"
@@ -74,7 +90,7 @@ defmodule RacuniWeb.InvoiceLive do
                   </div>
 
                   <%= for err <- upload_errors(@uploads.xml_file, entry) do %>
-                    <p class="text-error text-sm mt-2"><%= error_to_string(err) %></p>
+                    <p class="text-error text-sm mt-2">{error_to_string(err)}</p>
                   <% end %>
                 <% end %>
               </div>
@@ -82,7 +98,7 @@ defmodule RacuniWeb.InvoiceLive do
               <%= if @error do %>
                 <div class="alert alert-error mt-4">
                   <.icon name="hero-exclamation-circle" class="w-5 h-5" />
-                  <span><%= @error %></span>
+                  <span>{@error}</span>
                 </div>
               <% end %>
 
@@ -95,8 +111,7 @@ defmodule RacuniWeb.InvoiceLive do
                   <%= if @processing do %>
                     Generiranje...
                   <% else %>
-                    <.icon name="hero-document-text" class="w-5 h-5" />
-                    Generiraj PDF
+                    <.icon name="hero-document-text" class="w-5 h-5" /> Generiraj PDF
                   <% end %>
                 </button>
 
@@ -106,8 +121,7 @@ defmodule RacuniWeb.InvoiceLive do
                     phx-click="download"
                     class="btn btn-success"
                   >
-                    <.icon name="hero-arrow-down-tray" class="w-5 h-5" />
-                    Preuzmi PDF
+                    <.icon name="hero-arrow-down-tray" class="w-5 h-5" /> Preuzmi PDF
                   </button>
                 <% end %>
               </div>
@@ -119,29 +133,28 @@ defmodule RacuniWeb.InvoiceLive do
           <div class="card bg-base-200 shadow-xl mt-8">
             <div class="card-body">
               <h2 class="card-title">
-                <.icon name="hero-check-circle" class="w-6 h-6 text-success" />
-                Račun uspješno učitan
+                <.icon name="hero-check-circle" class="w-6 h-6 text-success" /> Račun uspješno učitan
               </h2>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                 <div>
                   <h3 class="font-semibold text-base-content/70 mb-2">Izdavatelj</h3>
-                  <p class="font-medium"><%= @invoice.supplier.name %></p>
-                  <p class="text-sm"><%= @invoice.supplier.street %></p>
+                  <p class="font-medium">{@invoice.supplier.name}</p>
+                  <p class="text-sm">{@invoice.supplier.street}</p>
                   <p class="text-sm">
-                    <%= @invoice.supplier.postal_code %> <%= @invoice.supplier.city %>
+                    {@invoice.supplier.postal_code} {@invoice.supplier.city}
                   </p>
-                  <p class="text-sm">OIB: <%= @invoice.supplier.oib %></p>
+                  <p class="text-sm">OIB: {@invoice.supplier.oib}</p>
                 </div>
 
                 <div>
                   <h3 class="font-semibold text-base-content/70 mb-2">Kupac</h3>
-                  <p class="font-medium"><%= @invoice.customer.name %></p>
-                  <p class="text-sm"><%= @invoice.customer.street %></p>
+                  <p class="font-medium">{@invoice.customer.name}</p>
+                  <p class="text-sm">{@invoice.customer.street}</p>
                   <p class="text-sm">
-                    <%= @invoice.customer.postal_code %> <%= @invoice.customer.city %>
+                    {@invoice.customer.postal_code} {@invoice.customer.city}
                   </p>
-                  <p class="text-sm">OIB: <%= @invoice.customer.oib %></p>
+                  <p class="text-sm">OIB: {@invoice.customer.oib}</p>
                 </div>
               </div>
 
@@ -150,20 +163,20 @@ defmodule RacuniWeb.InvoiceLive do
               <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <span class="text-sm text-base-content/70">Broj računa</span>
-                  <p class="font-medium"><%= @invoice.id %></p>
+                  <p class="font-medium">{@invoice.id}</p>
                 </div>
                 <div>
                   <span class="text-sm text-base-content/70">Datum izdavanja</span>
-                  <p class="font-medium"><%= format_date(@invoice.issue_date) %></p>
+                  <p class="font-medium">{format_date(@invoice.issue_date)}</p>
                 </div>
                 <div>
                   <span class="text-sm text-base-content/70">Rok plaćanja</span>
-                  <p class="font-medium"><%= format_date(@invoice.due_date) %></p>
+                  <p class="font-medium">{format_date(@invoice.due_date)}</p>
                 </div>
                 <div>
                   <span class="text-sm text-base-content/70">Iznos za platiti</span>
                   <p class="font-medium text-lg">
-                    <%= format_amount(@invoice.totals.payable) %> <%= @invoice.currency %>
+                    {format_amount(@invoice.totals.payable)} {@invoice.currency}
                   </p>
                 </div>
               </div>
@@ -171,7 +184,7 @@ defmodule RacuniWeb.InvoiceLive do
               <div class="divider"></div>
 
               <h3 class="font-semibold text-base-content/70 mb-2">
-                Stavke (<%= length(@invoice.line_items) %>)
+                Stavke ({length(@invoice.line_items)})
               </h3>
 
               <div class="overflow-x-auto">
@@ -188,13 +201,13 @@ defmodule RacuniWeb.InvoiceLive do
                   <tbody>
                     <%= for item <- @invoice.line_items do %>
                       <tr>
-                        <td><%= item.name %></td>
+                        <td>{item.name}</td>
                         <td class="text-right">
-                          <%= format_amount(item.quantity) %> <%= format_unit(item.unit) %>
+                          {format_amount(item.quantity)} {format_unit(item.unit)}
                         </td>
-                        <td class="text-right"><%= format_amount(item.unit_price) %></td>
-                        <td class="text-right"><%= format_amount(item.line_total) %></td>
-                        <td class="text-right"><%= format_amount(item.vat_percent) %>%</td>
+                        <td class="text-right">{format_amount(item.unit_price)}</td>
+                        <td class="text-right">{format_amount(item.line_total)}</td>
+                        <td class="text-right">{format_amount(item.vat_percent)}%</td>
                       </tr>
                     <% end %>
                   </tbody>
@@ -219,7 +232,49 @@ defmodule RacuniWeb.InvoiceLive do
   end
 
   @impl true
-  def handle_event("generate", _params, socket) do
+  def handle_event("generate", params, socket) do
+    honeypot_value = Map.get(params, "website", "")
+
+    cond do
+      # Honeypot check - if filled, it's a bot
+      honeypot_value != "" ->
+        {:noreply, socket}
+
+      # Rate limit check
+      rate_limited?(socket.assigns.session_id) ->
+        {:noreply,
+         socket
+         |> assign(:error, "Previše zahtjeva. Molimo pričekajte minutu i pokušajte ponovno.")}
+
+      true ->
+        process_generate(socket)
+    end
+  end
+
+  @impl true
+  def handle_event("download", _params, socket) do
+    if socket.assigns.pdf_data do
+      filename = "racun-#{socket.assigns.invoice.id}.pdf"
+
+      {:noreply,
+       push_event(socket, "download", %{
+         data: socket.assigns.pdf_data,
+         filename: filename,
+         content_type: "application/pdf"
+       })}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp rate_limited?(session_id) do
+    case Hammer.check_rate("generate:#{session_id}", @rate_limit_scale, @rate_limit_count) do
+      {:allow, _count} -> false
+      {:deny, _limit} -> true
+    end
+  end
+
+  defp process_generate(socket) do
     socket = assign(socket, :processing, true)
     socket = assign(socket, :error, nil)
 
@@ -257,22 +312,6 @@ defmodule RacuniWeb.InvoiceLive do
          socket
          |> assign(:error, "Greška pri čitanju datoteke")
          |> assign(:processing, false)}
-    end
-  end
-
-  @impl true
-  def handle_event("download", _params, socket) do
-    if socket.assigns.pdf_data do
-      filename = "racun-#{socket.assigns.invoice.id}.pdf"
-
-      {:noreply,
-       push_event(socket, "download", %{
-         data: socket.assigns.pdf_data,
-         filename: filename,
-         content_type: "application/pdf"
-       })}
-    else
-      {:noreply, socket}
     end
   end
 
