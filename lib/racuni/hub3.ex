@@ -14,15 +14,38 @@ defmodule Racuni.HUB3 do
   Returns `{:ok, png_binary}` or `{:error, reason}`.
   """
   def generate_barcode(%Invoice{} = invoice) do
-    data = format_hub3_string(invoice)
+    with :ok <- validate_invoice_for_hub3(invoice) do
+      data = format_hub3_string(invoice)
 
-    # PDF417 library returns {:ok, iodata} with PNG data
-    case PDF417.encode(data, %{columns: 8, security_level: 2}) do
-      {:ok, png_iodata} ->
-        {:ok, IO.iodata_to_binary(png_iodata)}
+      case PDF417.encode(data, %{columns: 8, security_level: 2}) do
+        {:ok, png_iodata} ->
+          {:ok, IO.iodata_to_binary(png_iodata)}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  defp validate_invoice_for_hub3(%Invoice{} = invoice) do
+    cond do
+      is_nil(invoice.totals) ->
+        {:error, "Nedostaju ukupni iznosi računa (totals)"}
+
+      is_nil(invoice.totals.payable) ->
+        {:error, "Nedostaje iznos za plaćanje (payable)"}
+
+      is_nil(invoice.supplier) ->
+        {:error, "Nedostaju podaci o izdavatelju (supplier)"}
+
+      is_nil(invoice.customer) ->
+        {:error, "Nedostaju podaci o kupcu (customer)"}
+
+      is_nil(invoice.payment_means) ->
+        {:error, "Nedostaju podaci o plaćanju (payment_means)"}
+
+      true ->
+        :ok
     end
   end
 

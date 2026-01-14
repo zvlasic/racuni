@@ -1,9 +1,18 @@
 defmodule Racuni.Invoice do
   @moduledoc """
-  Struct and parser for UBL 2.1 invoices.
+  Struct and parser for invoices.
+
+  Supports two XML formats:
+  - **UBL 2.1** - Standard UN/CEFACT invoice format
+  - **eFiskalizacija** - Croatian Tax Authority format (Porezna Uprava)
+
+  The parser automatically detects the format based on the XML root element
+  and routes to the appropriate parser.
   """
 
   import SweetXml
+
+  alias Racuni.Invoice.EFiskalizacijaParser
 
   defstruct [
     :id,
@@ -71,11 +80,51 @@ defmodule Racuni.Invoice do
   ]
 
   @doc """
-  Parses a UBL 2.1 Invoice XML string into an Invoice struct.
+  Parses an Invoice XML string into an Invoice struct.
+
+  Automatically detects the XML format:
+  - UBL 2.1 (root element `Invoice` in UBL namespace)
+  - eFiskalizacija (root element `EvidentirajERacunZahtjev` in Porezna Uprava namespace)
 
   Returns `{:ok, %Invoice{}}` or `{:error, reason}`.
   """
   def parse(xml_string) when is_binary(xml_string) do
+    case detect_format(xml_string) do
+      :ubl ->
+        parse_ubl(xml_string)
+
+      :efiskalizacija ->
+        EFiskalizacijaParser.parse(xml_string)
+
+      :unknown ->
+        {:error, "Nepoznat format XML dokumenta. Podržani formati: UBL 2.1, eFiskalizacija"}
+    end
+  end
+
+  @doc """
+  Detects the XML format based on root element and namespace.
+  """
+  def detect_format(xml_string) when is_binary(xml_string) do
+    cond do
+      # eFiskalizacija format - check for Porezna Uprava namespace
+      String.contains?(xml_string, "porezna-uprava.gov.hr") ->
+        :efiskalizacija
+
+      # UBL 2.1 format - check for UBL Invoice namespace
+      String.contains?(xml_string, "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2") ->
+        :ubl
+
+      # Also check for common UBL root element without namespace prefix
+      String.contains?(xml_string, "<Invoice") and
+          String.contains?(xml_string, "CommonBasicComponents") ->
+        :ubl
+
+      true ->
+        :unknown
+    end
+  end
+
+  defp parse_ubl(xml_string) do
     try do
       doc = SweetXml.parse(xml_string)
 
