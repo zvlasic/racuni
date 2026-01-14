@@ -12,6 +12,7 @@ kill_signal = 'SIGTERM'
 [env]
   PHX_HOST = 'racuni-hidden-glade-9830.fly.dev'
   PORT = '8080'
+  PHX_SERVER = 'true'
 
 [http_service]
   internal_port = 8080
