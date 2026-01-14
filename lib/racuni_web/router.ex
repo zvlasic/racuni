@@ -17,7 +17,7 @@ defmodule RacuniWeb.Router do
   scope "/", RacuniWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", InvoiceLive
   end
 
   # Other scopes may use custom stacks.
