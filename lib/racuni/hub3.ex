@@ -24,13 +24,16 @@ defmodule Racuni.HUB3 do
     tmp_file = Path.join(System.tmp_dir!(), "hub3_#{:erlang.unique_integer([:positive])}.png")
 
     args = [
-      "-b", "55",
-      "-d", data,
+      "-b",
+      "55",
+      "-d",
+      data,
       "--binary",
       "--cols=8",
       "--secure=2",
       "--scale=2",
-      "-o", tmp_file
+      "-o",
+      tmp_file
     ]
 
     case System.cmd("zint", args, stderr_to_stdout: true) do

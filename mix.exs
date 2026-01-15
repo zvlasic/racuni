@@ -59,6 +59,8 @@ defmodule Racuni.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      {:honeybadger, "~> 0.22"},
+      {:req, "~> 0.3"},
       # Invoice processing
       {:decimal, "~> 2.0"},
       {:sweet_xml, "~> 0.7"},

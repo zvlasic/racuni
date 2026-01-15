@@ -1,5 +1,6 @@
 defmodule RacuniWeb.Router do
   use RacuniWeb, :router
+  use Honeybadger.Plug
 
   pipeline :browser do
     plug :accepts, ["html"]
