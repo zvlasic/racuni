@@ -79,6 +79,9 @@ defmodule Racuni.Invoice do
     cbc: "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
   ]
 
+  # Maximum allowed entity references in XML (protection against billion laughs)
+  @max_entity_refs 100
+
   @doc """
   Parses an Invoice XML string into an Invoice struct.
 
@@ -89,16 +92,40 @@ defmodule Racuni.Invoice do
   Returns `{:ok, %Invoice{}}` or `{:error, reason}`.
   """
   def parse(xml_string) when is_binary(xml_string) do
-    case detect_format(xml_string) do
-      :ubl ->
-        parse_ubl(xml_string)
+    with :ok <- validate_xml_safety(xml_string) do
+      case detect_format(xml_string) do
+        :ubl ->
+          parse_ubl(xml_string)
 
-      :efiskalizacija ->
-        EFiskalizacijaParser.parse(xml_string)
+        :efiskalizacija ->
+          EFiskalizacijaParser.parse(xml_string)
 
-      :unknown ->
-        {:error, "Nepoznat format XML dokumenta. Podržani formati: UBL 2.1, eFiskalizacija"}
+        :unknown ->
+          {:error, "Nepoznat format XML dokumenta. Podržani formati: UBL 2.1, eFiskalizacija"}
+      end
     end
+  end
+
+  # Validates XML string for potential security issues before parsing.
+  # Checks for excessive entity references that could indicate XML bomb attacks.
+  defp validate_xml_safety(xml_string) do
+    entity_count = count_entity_references(xml_string)
+
+    if entity_count > @max_entity_refs do
+      {:error, "XML dokument sadrži previše entiteta (#{entity_count}). Maksimalno dozvoljeno: #{@max_entity_refs}"}
+    else
+      :ok
+    end
+  end
+
+  # Counts entity references (&name;) and entity declarations (<!ENTITY) in XML
+  defp count_entity_references(xml_string) do
+    # Count &entity; references (excluding common ones like &amp; &lt; &gt; &quot; &apos;)
+    entity_refs = Regex.scan(~r/&(?!amp;|lt;|gt;|quot;|apos;|#)\w+;/, xml_string) |> length()
+    # Count <!ENTITY declarations
+    entity_decls = Regex.scan(~r/<!ENTITY/i, xml_string) |> length()
+
+    entity_refs + entity_decls
   end
 
   @doc """
@@ -126,7 +153,8 @@ defmodule Racuni.Invoice do
 
   defp parse_ubl(xml_string) do
     try do
-      doc = SweetXml.parse(xml_string)
+      # dtd: :none prevents XXE attacks by disabling DTD processing
+      doc = SweetXml.parse(xml_string, dtd: :none)
 
       invoice = %__MODULE__{
         id: xpath(doc, ~x"/invoice:Invoice/cbc:ID/text()"s |> add_ns()),
