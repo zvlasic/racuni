@@ -66,7 +66,9 @@ defmodule Racuni.MixProject do
       {:sweet_xml, "~> 0.7"},
       {:imprintor, "~> 0.1.0"},
       # Rate limiting
-      {:hammer, "~> 6.2"}
+      {:hammer, "~> 6.2"},
+      # Security auditing
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]
   end
 
