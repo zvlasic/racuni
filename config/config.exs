@@ -19,7 +19,7 @@ config :racuni, RacuniWeb.Endpoint,
     layout: false
   ],
   pubsub_server: Racuni.PubSub,
-  live_view: [signing_salt: "rFLTD67+"]
+  live_view: [signing_salt: "dev_only_salt_change_in_prod"]
 
 # Configure esbuild (the version is required)
 config :esbuild,

@@ -36,6 +36,24 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
+  # Signing salts for session and LiveView - generate with: mix phx.gen.secret 32
+  session_signing_salt =
+    System.get_env("SESSION_SIGNING_SALT") ||
+      raise """
+      environment variable SESSION_SIGNING_SALT is missing.
+      You can generate one by calling: mix phx.gen.secret 32
+      """
+
+  live_view_signing_salt =
+    System.get_env("LIVE_VIEW_SIGNING_SALT") ||
+      raise """
+      environment variable LIVE_VIEW_SIGNING_SALT is missing.
+      You can generate one by calling: mix phx.gen.secret 32
+      """
+
+  config :racuni,
+    session_signing_salt: session_signing_salt
+
   host = System.get_env("PHX_HOST") || "example.com"
 
   config :racuni, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
@@ -50,7 +68,8 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: String.to_integer(System.get_env("PORT") || "4000")
     ],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    live_view: [signing_salt: live_view_signing_salt]
 
   config :honeybadger,
     api_key: System.get_env("HONEYBADGER_API_KEY"),

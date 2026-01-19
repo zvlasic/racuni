@@ -7,13 +7,18 @@ defmodule RacuniWeb.Endpoint do
   @session_options [
     store: :cookie,
     key: "_racuni_key",
-    signing_salt: "QzLWlIcQ",
+    signing_salt: {RacuniWeb.Endpoint, :session_signing_salt, []},
     same_site: "Lax"
   ]
 
+  @doc false
+  def session_signing_salt do
+    Application.get_env(:racuni, :session_signing_salt) || "dev_only_salt_change_in_prod"
+  end
+
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [session: @session_options, peer_data: true]],
+    longpoll: [connect_info: [session: @session_options, peer_data: true]]
 
   # Serve at "/" the static files from "priv/static" directory.
   #
