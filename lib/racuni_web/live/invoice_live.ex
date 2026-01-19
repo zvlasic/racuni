@@ -13,6 +13,9 @@ defmodule RacuniWeb.InvoiceLive do
     # _csrf_token is always present from Phoenix's :fetch_session plug
     session_id = session["_csrf_token"]
 
+    # Get client IP for rate limiting fallback (when user clears cookies)
+    client_ip = get_client_ip(socket)
+
     {:ok,
      socket
      |> assign(:invoice, nil)
@@ -20,12 +23,26 @@ defmodule RacuniWeb.InvoiceLive do
      |> assign(:error, nil)
      |> assign(:processing, false)
      |> assign(:session_id, session_id)
+     |> assign(:client_ip, client_ip)
      |> allow_upload(:xml_file,
        accept: ~w(.xml),
        max_entries: 1,
        max_file_size: 5_000_000
      )}
   end
+
+  defp get_client_ip(socket) do
+    case get_connect_info(socket, :peer_data) do
+      %{address: address} -> format_ip(address)
+      _ -> "unknown"
+    end
+  end
+
+  defp format_ip(address) when is_tuple(address) do
+    address |> :inet.ntoa() |> to_string()
+  end
+
+  defp format_ip(_), do: "unknown"
 
   @impl true
   def render(assigns) do
@@ -240,8 +257,8 @@ defmodule RacuniWeb.InvoiceLive do
       honeypot_value != "" ->
         {:noreply, socket}
 
-      # Rate limit check
-      rate_limited?(socket.assigns.session_id) ->
+      # Rate limit check (session + IP based)
+      rate_limited?(socket.assigns.session_id, socket.assigns.client_ip) ->
         {:noreply,
          socket
          |> assign(:error, "Previše zahtjeva. Molimo pričekajte minutu i pokušajte ponovno.")}
@@ -267,10 +284,15 @@ defmodule RacuniWeb.InvoiceLive do
     end
   end
 
-  defp rate_limited?(session_id) do
-    case Hammer.check_rate("generate:#{session_id}", @rate_limit_scale, @rate_limit_count) do
-      {:allow, _count} -> false
-      {:deny, _limit} -> true
+  defp rate_limited?(session_id, client_ip) do
+    # Check both session-based and IP-based rate limits
+    # This prevents bypass by clearing cookies
+    session_result = Hammer.check_rate("generate:session:#{session_id}", @rate_limit_scale, @rate_limit_count)
+    ip_result = Hammer.check_rate("generate:ip:#{client_ip}", @rate_limit_scale, @rate_limit_count)
+
+    case {session_result, ip_result} do
+      {{:allow, _}, {:allow, _}} -> false
+      _ -> true
     end
   end
 
