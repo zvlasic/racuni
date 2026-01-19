@@ -22,7 +22,8 @@ defmodule Racuni.Invoice.EFiskalizacijaParser do
   """
   def parse(xml_string) when is_binary(xml_string) do
     try do
-      doc = SweetXml.parse(xml_string)
+      # dtd: :none prevents XXE attacks by disabling DTD processing
+      doc = SweetXml.parse(xml_string, dtd: :none)
 
       # eFiskalizacija can have multiple ERacun elements, we take the first one
       eracun = xpath(doc, ~x"//tns:ERacun"e |> add_ns())
