@@ -30,25 +30,24 @@ defmodule Racuni.PDF do
 
     File.write!(barcode_path, barcode_png)
 
-    # Imprintor passes data directly as elixir_data global variable
-    data = %{
-      "invoice" => serialize_invoice(invoice),
-      "barcode_path" => barcode_path
-    }
+    try do
+      # Imprintor passes data directly as elixir_data global variable
+      data = %{
+        "invoice" => serialize_invoice(invoice),
+        "barcode_path" => barcode_path
+      }
 
-    # Set root_directory to / so we can access the temp file with absolute path
-    config = Imprintor.Config.new(template, data, root_directory: "/")
+      # Set root_directory to / so we can access the temp file with absolute path
+      config = Imprintor.Config.new(template, data, root_directory: "/")
 
-    result =
       case Imprintor.compile_to_pdf(config) do
         {:ok, pdf} -> {:ok, pdf}
         {:error, reason} -> {:error, "PDF compilation failed: #{inspect(reason)}"}
       end
-
-    # Cleanup temp file
-    File.rm(barcode_path)
-
-    result
+    after
+      # Cleanup temp file - always runs even if an exception is raised
+      File.rm(barcode_path)
+    end
   end
 
   defp serialize_invoice(%Invoice{} = invoice) do
